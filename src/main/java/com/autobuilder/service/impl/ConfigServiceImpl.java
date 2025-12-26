@@ -74,38 +74,82 @@ public class ConfigServiceImpl implements ConfigService {
     }
 
     private String extractOrmXml(String aiResponse) {
-        // 提取XML部分，假设AI返回的响应中包含XML标签
-        int xmlStart = aiResponse.indexOf("<orm");
+        logger.debug("开始提取ORM XML，响应长度: {}", aiResponse.length());
+        
+        // 清理响应，移除可能的代码块标记
+        String cleanedResponse = aiResponse.replaceAll("```xml\\s*", "").replaceAll("```\\s*$", "").trim();
+        
+        // 提取XML部分，优先查找完整的orm标签
+        int xmlStart = cleanedResponse.indexOf("<orm");
         if (xmlStart == -1) {
-            // 如果没有找到完整的orm标签，尝试查找任何XML标签
-            xmlStart = aiResponse.indexOf("<");
+            // 如果没有找到orm标签，尝试查找entities标签
+            xmlStart = cleanedResponse.indexOf("<entities");
         }
         
         if (xmlStart == -1) {
-            throw new RuntimeException("AI响应中未找到有效的XML内容");
+            // 如果还没有找到，尝试查找任何XML标签
+            xmlStart = cleanedResponse.indexOf("<");
         }
         
-        int xmlEnd = aiResponse.lastIndexOf("</orm>");
+        if (xmlStart == -1) {
+            logger.warn("AI响应中未找到有效的XML内容，响应内容: {}", cleanedResponse.substring(0, Math.min(200, cleanedResponse.length())));
+            throw new RuntimeException("AI响应中未找到有效的XML内容，请检查AI模型的响应格式");
+        }
+        
+        // 查找XML结束标签
+        int xmlEnd = cleanedResponse.lastIndexOf("</orm>");
         if (xmlEnd == -1) {
-            xmlEnd = aiResponse.lastIndexOf(">");
+            // 如果没有找到orm结束标签，尝试查找entities结束标签
+            xmlEnd = cleanedResponse.lastIndexOf("</entities>");
+        }
+        
+        if (xmlEnd == -1) {
+            // 如果还没有找到，尝试查找最后一个>符号
+            xmlEnd = cleanedResponse.lastIndexOf(">");
         }
         
         if (xmlEnd == -1 || xmlEnd <= xmlStart) {
+            logger.warn("无法提取完整的XML内容，起始位置: {}, 结束位置: {}", xmlStart, xmlEnd);
             throw new RuntimeException("无法提取完整的XML内容");
         }
         
-        return aiResponse.substring(xmlStart, xmlEnd + 6); // +6 to include "</orm>"
+        String xmlContent = cleanedResponse.substring(xmlStart, xmlEnd + 6); // +6 to include "</orm>" or similar
+        logger.debug("成功提取XML内容，长度: {}", xmlContent.length());
+        
+        return xmlContent;
     }
 
     private String extractEntityName(String aiResponse) {
-        // 尝试从AI响应中提取实体名称
-        // 这里可以基于AI响应的结构来解析，暂时返回默认值
+        logger.debug("开始提取实体名称");
+        
+        // 使用正则表达式提取entity的name属性
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("entity\\s+name\\s*=\\s*\"([^\"]+)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        
+        if (matcher.find()) {
+            String entityName = matcher.group(1);
+            logger.debug("成功提取实体名称: {}", entityName);
+            return entityName;
+        }
+        
+        logger.warn("未能从AI响应中提取实体名称，使用默认值");
         return "app.module.Entity";
     }
 
     private String extractTableName(String aiResponse) {
-        // 尝试从AI响应中提取表名
-        // 这里可以基于AI响应的结构来解析，暂时返回默认值
+        logger.debug("开始提取表名");
+        
+        // 使用正则表达式提取tableName属性
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("tableName\\s*=\\s*\"([^\"]+)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        
+        if (matcher.find()) {
+            String tableName = matcher.group(1);
+            logger.debug("成功提取表名: {}", tableName);
+            return tableName;
+        }
+        
+        logger.warn("未能从AI响应中提取表名，使用默认值");
         return "entity_table";
     }
 }

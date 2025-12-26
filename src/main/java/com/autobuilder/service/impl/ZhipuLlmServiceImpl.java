@@ -1,5 +1,7 @@
 package com.autobuilder.service.impl;
 
+import ai.z.openapi.ZhipuAiClient;
+import ai.z.openapi.service.model.*;
 import com.autobuilder.config.AiProperties;
 import com.autobuilder.service.LlmService;
 import org.slf4j.Logger;
@@ -7,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
 
 @Service
 @ConditionalOnProperty(name = "ai.active-provider", havingValue = "zhipu")
@@ -28,41 +32,77 @@ public class ZhipuLlmServiceImpl implements LlmService {
         try {
             logger.info("开始使用智谱AI生成构建规划，模型: {}", config.getModel());
             
-            // TODO: 集成智谱AI SDK
-            // ai.z.openapi.Client client = new ai.z.openapi.Client(config.getApiKey());
-            // 这里是智谱AI SDK的集成点
-            // 目前先返回模拟结果
+            // 初始化智谱AI客户端
+            ZhipuAiClient client = ZhipuAiClient.builder().ofZHIPU()
+                .apiKey(config.getApiKey())
+                .build();
             
-            String result = String.format(
-                "智谱AI (%s) ORM生成结果：\n" +
-                "根据输入配置生成以下ORM XML：\n\n" +
-                "<orm x:schema=\"/nop/schema/orm/orm.xdef\" xmlns:x=\"/nop/schema/xdsl.xdef\"\n" +
-                "     xmlns:biz=\"biz\" xmlns:orm=\"orm\" xmlns:ext=\"ext\">\n" +
-                "    <entities>\n" +
-                "        <entity name=\"app.module.Entity\" \n" +
-                "                tableName=\"entity\" \n" +
-                "                displayName=\"实体\"\n" +
-                "                biz:type=\"entity\"\n" +
-                "                registerShortName=\"true\">\n" +
-                "            <columns>\n" +
-                "                <column name=\"id\" code=\"ID\" propId=\"1\" stdSqlType=\"VARCHAR\" \n" +
-                "                        precision=\"36\" primary=\"true\" mandatory=\"true\" \n" +
-                "                        displayName=\"ID\"/>\n" +
-                "                <!-- 其他字段将根据输入配置生成 -->\n" +
-                "            </columns>\n" +
-                "        </entity>\n" +
-                "    </entities>\n" +
-                "</orm>\n\n" +
-                "注意：这是模拟结果，智谱AI SDK集成后将根据实际输入配置生成对应的ORM实体。",
-                config.getModel()
-            );
+            // 注意：根据文档，base URL已经由ofZHIPU()自动设置为智谱AI的地址
+            // 如果需要自定义URL，可能需要使用不同的builder方法
             
-            logger.info("智谱AI构建规划生成完成");
+            // 创建聊天完成请求
+            ChatCompletionCreateParams request = ChatCompletionCreateParams.builder()
+                .model(config.getModel())
+                .messages(Arrays.asList(
+                    ChatMessage.builder()
+                        .role(ChatMessageRole.USER.value())
+                        .content(prompt)
+                        .build()
+                ))
+                .stream(false)
+                .temperature(0.3f)
+                .maxTokens(4096)
+                .build();
+            
+            // 发送请求并获取响应
+            ChatCompletionResponse response = client.chat().createChatCompletion(request);
+            
+            // 验证响应
+            if (response == null) {
+                throw new RuntimeException("智谱AI服务返回空响应");
+            }
+            
+            if (!response.isSuccess()) {
+                throw new RuntimeException("智谱AI API调用失败: " + response.getMsg());
+            }
+            
+            if (response.getData() == null || response.getData().getChoices() == null || response.getData().getChoices().isEmpty()) {
+                throw new RuntimeException("智谱AI返回的数据格式异常：缺少choices数据");
+            }
+            
+            // 提取AI回复内容
+            Object contentObj = response.getData().getChoices().get(0).getMessage().getContent();
+            if (contentObj == null) {
+                throw new RuntimeException("智谱AI返回的内容为空");
+            }
+            
+            String result = contentObj.toString();
+            
+            if (result.trim().isEmpty()) {
+                throw new RuntimeException("智谱AI返回的内容为空字符串");
+            }
+            
+            logger.info("智谱AI构建规划生成完成，响应长度: {}", result.length());
             return result;
             
         } catch (Exception e) {
-            logger.error("智谱AI生成构建规划失败", e);
-            throw new RuntimeException("智谱AI服务异常: " + e.getMessage(), e);
+            logger.error("智谱AI生成构建规划失败，模型: {}, 错误详情: {}", config.getModel(), e.getMessage(), e);
+            
+            // 根据异常类型提供更具体的错误信息
+            String errorMessage;
+            if (e.getMessage() != null && e.getMessage().contains("401")) {
+                errorMessage = "智谱AI API密钥无效或已过期，请检查API Key配置";
+            } else if (e.getMessage() != null && e.getMessage().contains("429")) {
+                errorMessage = "智谱AI API调用频率超限，请稍后重试";
+            } else if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                errorMessage = "智谱AI服务请求超时，请检查网络连接或稍后重试";
+            } else if (e.getMessage() != null && e.getMessage().contains("connection")) {
+                errorMessage = "无法连接到智谱AI服务，请检查网络连接";
+            } else {
+                errorMessage = "智谱AI服务异常: " + e.getMessage();
+            }
+            
+            throw new RuntimeException(errorMessage, e);
         }
     }
 

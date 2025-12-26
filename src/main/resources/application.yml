@@ -13,7 +13,8 @@ ai:
   providers:
     zhipu:
       api-key: "${AI_ZHIPU_API_KEY:}"
-      model: "glm-4"
+      model: "glm-4.7"
+      base-url: "https://open.bigmodel.cn/api/paas/v4/"
     openai:
       api-key: "${AI_OPENAI_API_KEY:}"
       model: "gpt-4"
