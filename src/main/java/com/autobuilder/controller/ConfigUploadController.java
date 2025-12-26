@@ -2,7 +2,6 @@ package com.autobuilder.controller;
 
 import com.autobuilder.common.Result;
 import com.autobuilder.service.ConfigService;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,7 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
-@Tag(name = "Config Upload", description = "API for uploading and parsing configuration files")
+@Tag(name = "Config Upload", description = "API for uploading and generating ORM entities")
 public class ConfigUploadController {
 
     private final ConfigService configService;
@@ -26,19 +25,19 @@ public class ConfigUploadController {
         this.configService = configService;
     }
 
-    @Operation(summary = "Upload configuration file", 
-            description = "Uploads a JSON configuration file and returns its parsed content",
+    @Operation(summary = "Upload configuration file for ORM generation", 
+            description = "Uploads a JSON configuration file and generates ORM entity using AI",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "File uploaded and parsed successfully"),
+                    @ApiResponse(responseCode = "200", description = "ORM generated successfully"),
                     @ApiResponse(responseCode = "400", description = "Invalid input or file format"),
                     @ApiResponse(responseCode = "500", description = "Internal server error")
             })
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result<JsonNode> uploadConfig(
-            @Parameter(description = "Configuration file to upload (JSON format)", required = true,
+    public Result<ConfigService.OrmGenerationResult> uploadConfig(
+            @Parameter(description = "Configuration file to upload (JSON format for table structure)", required = true,
                     content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
             @RequestParam("file") MultipartFile file) {
-        JsonNode jsonNode = configService.parseConfig(file);
-        return Result.success(jsonNode);
+        ConfigService.OrmGenerationResult result = configService.generateOrm(file);
+        return Result.success(result);
     }
 }

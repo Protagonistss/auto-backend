@@ -1,6 +1,9 @@
 # Project specific
 .trae/
 
+# Local configuration (contains sensitive data)
+src/main/resources/application-local.yml
+
 # Maven
 target/
 pom.xml.tag
