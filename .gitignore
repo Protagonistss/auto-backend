@@ -1,31 +1,25 @@
-# Project specific
-.trae/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+uv.lock
 
-# Local configuration (contains sensitive data)
-src/main/resources/application-local.yml
-
-# Maven
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-.mvn/wrapper/maven-wrapper.jar
+# Environment
+.env
+.env.local
 
 # IDE
 .idea/
-*.iml
-*.iws
-*.ipr
 .vscode/
-.classpath
-.project
-.settings/
-bin/
+*.iml
+*.swp
+*.swo
 
 # OS
 .DS_Store
@@ -38,4 +32,9 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
-*~.nib
+*~
+
+# Project specific
+.trae/
+uploads/
+test_config.json
