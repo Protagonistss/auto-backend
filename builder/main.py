@@ -27,9 +27,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Auto-Builder API",
-    description="AI-powered ORM entity generator",
+    description="AI 驱动的 ORM 实体生成器，上传 JSON 配置文件自动生成 MyBatis 代码",
     version="2.0.0",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 # CORS 配置
@@ -42,16 +45,18 @@ app.add_middleware(
 )
 
 # 路由注册
-app.include_router(upload.router, prefix="/api", tags="Upload")
+app.include_router(upload.router, tags=["任务管理"])
 
 
-@app.get("/")
+@app.get("/", summary="服务信息", tags=["系统"])
 async def root():
+    """获取 API 服务信息"""
     return {"message": "Auto-Builder API is running", "version": "2.0.0"}
 
 
-@app.get("/health")
+@app.get("/health", summary="健康检查", tags=["系统"])
 async def health():
+    """检查服务健康状态"""
     return {"status": "healthy"}
 
 

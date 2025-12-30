@@ -98,19 +98,25 @@ HOST=0.0.0.0         # 监听地址
 
 ### 方式一：使用 uv（推荐）
 
+#### Windows 系统
+
 ```bash
 # 开发模式（带热重载）
-uv run uvicorn builder.main:app --reload --host 0.0.0.0 --port 8000
+uv run -m uvicorn builder.main:app --reload
+```
 
-# 或直接运行
-uv run python -m builder.main
+#### Linux / macOS 系统
+
+```bash
+# 开发模式（带热重载）
+uv run -m uvicorn builder.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 方式二：生产模式
 
 ```bash
 # 多进程部署（推荐用于生产环境）
-uv run uvicorn builder.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run -m uvicorn builder.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 **启动成功输出：**
@@ -231,15 +237,19 @@ GET /api/tasks/{task_id}/result
 
 ### 使用 Swagger UI（推荐）
 
-访问浏览器：
-```
-http://localhost:8000/docs
-```
+启动服务后，可以通过以下地址访问交互式 API 文档：
+
+| 文档类型 | 地址 | 说明 |
+|---------|------|------|
+| **Swagger UI** | http://localhost:8000/docs | 交互式 API 文档，支持在线测试 |
+| **ReDoc** | http://localhost:8000/redoc | 另一种风格的 API 文档 |
+| **OpenAPI Schema** | http://localhost:8000/openapi.json | OpenAPI 3.0 JSON 规范 |
 
 在 Swagger UI 中可以：
-- 查看所有 API 接口
-- 在线测试接口
-- 查看请求/响应示例
+- 查看所有 API 接口和详细说明
+- 在线测试接口（无需额外工具）
+- 查看请求/响应示例和数据模型
+- 下载 OpenAPI 规范文件
 
 ### 使用示例配置
 
@@ -367,8 +377,9 @@ auto-backend/
 - 🤖 集成智谱 AI (GLM-4.7) 模型
 - 📦 使用 uv 进行极速依赖管理
 - 🔒 支持异步任务处理
-- 📝 自动生成 Swagger API 文档
-- 🎯 简单易用的 RESTful API
+- 📝 自动生成 Swagger/OpenAPI 3.0 文档
+- 🎯 简单易用的 RESTful API 设计
+- 📖 完整的 API 文档和在线测试界面
 
 ## 开发指南
 
