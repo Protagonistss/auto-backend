@@ -1,5 +1,5 @@
 {
-  "serviceName": "AutoBuilder",
+  "serviceName": "AutoBackend",
   "version": "1.0.0",
   "settings": {
     "retryCount": 3,
