@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .config import settings
-from .api import upload
+from .api import upload, conversations
 
 # 配置日志
 logging.basicConfig(
@@ -20,6 +20,12 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Auto-Builder Python 启动")
     logger.info(f"📦 AI Provider: {settings.ai_provider}")
     logger.info(f"🧠 Model: {settings.ai_model}")
+
+    # 确保上传目录存在
+    import os
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    logger.info(f"📁 上传目录: {settings.upload_dir}")
+
     yield
     # 关闭时清理
     logger.info("👋 Auto-Builder Python 关闭")
@@ -27,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Auto-Builder API",
-    description="AI 驱动的 ORM 实体生成器，上传 JSON 配置文件自动生成 MyBatis 代码",
+    description="AI 驱动的代码生成和对话系统",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -46,6 +52,7 @@ app.add_middleware(
 
 # 路由注册
 app.include_router(upload.router, tags=["任务管理"])
+app.include_router(conversations.router, tags=["对话管理"])
 
 
 @app.get("/", summary="服务信息", tags=["系统"])

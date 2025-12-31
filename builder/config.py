@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,17 @@ class Settings(BaseSettings):
 
     # 文件上传配置
     max_file_size: int = 10 * 1024 * 1024  # 10MB
+    upload_dir: str = "uploads/conversations"
+    allowed_file_types: List[str] = [
+        "application/json",
+        "text/plain",
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+    ]
+
+    # 对话配置
+    max_context_messages: int = 20  # 保留的上下文消息数量
 
     class Config:
         env_file = ".env"

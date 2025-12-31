@@ -2,16 +2,21 @@
 
 ## 一、输入格式说明
 
-输入是一个 JSON 配置对象，包含以下结构：
+输入是一个前端 UI 页面配置 JSON 对象，包含以下结构：
+
+### 主要路径：
 - `body.table.columns`: 表格列定义数组，每个列包含：
   - `title`: 列标题（中文显示名）
   - `dataIndex`: 字段标识（用于数据绑定）
   - `width`: 列宽度（可选）
   - `align`: 对齐方式（可选）
+
 - `body.search.fields`: 搜索字段定义数组（可选），每个字段包含：
   - `label`: 字段标签
   - `type`: 字段类型（input/select/date等）
   - `key`: 字段标识
+
+**注意：输入的是前端页面配置，不是数据库表结构。你需要根据列标题（title）和字段标识（dataIndex）推断出合适的数据库字段类型。**
 
 ## 二、输出格式说明
 
@@ -166,6 +171,7 @@
 ## 五、示例转换
 
 ### 输入 JSON：
+```json
 {
   "body": {
     "table": {
@@ -177,34 +183,41 @@
       ]
     }
   }
-}### 输出 ORM XML：
+}
+```
+
+### 输出 ORM XML：
+```xml
 <orm x:schema="/nop/schema/orm/orm.xdef" xmlns:x="/nop/schema/xdsl.xdef"
      xmlns:biz="biz" xmlns:orm="orm" xmlns:ext="ext">
     <entities>
-        <entity name="app.mall.Product" 
-                tableName="product" 
+        <entity name="app.mall.Product"
+                tableName="product"
                 displayName="商品"
                 biz:type="entity"
                 registerShortName="true">
             <columns>
-                <column name="id" code="ID" propId="1" stdSqlType="VARCHAR" 
-                        precision="36" primary="true" mandatory="true" 
+                <column name="id" code="ID" propId="1" stdSqlType="VARCHAR"
+                        precision="36" primary="true" mandatory="true"
                         displayName="ID"/>
-                <column name="productName" code="PRODUCT_NAME" propId="2" 
-                        stdSqlType="VARCHAR" precision="200" mandatory="true" 
+                <column name="productName" code="PRODUCT_NAME" propId="2"
+                        stdSqlType="VARCHAR" precision="200" mandatory="true"
                         displayName="商品名称"/>
-                <column name="productQuantity" code="PRODUCT_QUANTITY" propId="3" 
+                <column name="productQuantity" code="PRODUCT_QUANTITY" propId="3"
                         stdSqlType="INTEGER" displayName="商品数量"/>
-                <column name="productSource" code="PRODUCT_SOURCE" propId="4" 
-                        stdSqlType="VARCHAR" precision="50" 
+                <column name="productSource" code="PRODUCT_SOURCE" propId="4"
+                        stdSqlType="VARCHAR" precision="50"
                         ext:dict="product_source" displayName="商品来源"/>
-                <column name="productPrice" code="PRODUCT_PRICE" propId="5" 
-                        stdSqlType="DECIMAL" precision="18" scale="2" 
+                <column name="productPrice" code="PRODUCT_PRICE" propId="5"
+                        stdSqlType="DECIMAL" precision="18" scale="2"
                         displayName="商品价格"/>
             </columns>
         </entity>
     </entities>
-</orm>## 六、约束条件
+</orm>
+```
+
+## 六、约束条件
 
 1. **主键固定**：必须使用 `id` 字段，类型 `VARCHAR(36)`
 2. **SQL 类型限制**：仅允许 `VARCHAR/CHAR/DATE/TIME/DATETIME/TIMESTAMP/INTEGER/BIGINT/DECIMAL/BOOLEAN/VARBINARY`
