@@ -1,20 +1,16 @@
 import logging
 import uuid
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
-from fastapi import UploadFile, HTTPException, BackgroundTasks
+from fastapi import UploadFile, HTTPException
 
 from ..models.conversation import (
     Conversation,
     Message,
     FileInfo,
     ConversationDetail,
-    ChatResponse,
     MessageRole,
-    MessageTask,
-    MessageTaskStatus,
 )
 from ..config import settings
 from .ai_service import AIService
@@ -73,8 +69,8 @@ class ConversationService:
         self.upload_dir = Path(settings.upload_dir)
         # 确保上传目录存在
         self.upload_dir.mkdir(parents=True, exist_ok=True)
-        # 消息任务存储
-        self.message_tasks: Dict[str, MessageTask] = {}
+        # 暴露全局store
+        self.store = store
 
     def create_conversation(self, title: str) -> Conversation:
         """创建新会话"""
@@ -127,156 +123,6 @@ class ConversationService:
             messages=session.messages,
             files=list(session.files.values())
         )
-
-    def submit_message_task(
-        self,
-        conversation_id: str,
-        content: str,
-        file_ids: List[str] = None,
-        background_tasks: BackgroundTasks = None
-    ) -> str:
-        """提交消息任务（立即返回 task_id）"""
-        if file_ids is None:
-            file_ids = []
-
-        session = store.get(conversation_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="会话不存在")
-
-        # 1. 创建用户消息
-        user_message = Message(
-            role=MessageRole.USER,
-            content=content,
-            file_references=file_ids
-        )
-        session.messages.append(user_message)
-
-        # 2. 创建任务
-        task_id = str(uuid.uuid4())
-        task = MessageTask(
-            task_id=task_id,
-            conversation_id=conversation_id,
-            user_message_id=user_message.id,
-            status=MessageTaskStatus.PENDING
-        )
-        self.message_tasks[task_id] = task
-
-        # 3. 添加后台任务
-        if background_tasks:
-            background_tasks.add_task(
-                self._process_message_task_wrapper,
-                task_id, conversation_id, user_message.id, content, file_ids
-            )
-
-        logger.info(f"消息任务已提交: {task_id}, 会话: {conversation_id}")
-
-        return task_id
-
-    async def _process_message_task_wrapper(
-        self,
-        task_id: str,
-        conversation_id: str,
-        user_message_id: str,
-        content: str,
-        file_ids: List[str]
-    ):
-        """包装方法，用于 BackgroundTasks"""
-        logger.info(f"后台任务开始执行: {task_id}")
-        try:
-            await self._process_message_task(
-                task_id, conversation_id, user_message_id, content, file_ids
-            )
-        except Exception as e:
-            logger.error(f"后台任务异常: {task_id}, 错误: {e}", exc_info=True)
-            task = self.message_tasks.get(task_id)
-            if task:
-                task.status = MessageTaskStatus.FAILED
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-
-    async def _process_message_task(
-        self,
-        task_id: str,
-        conversation_id: str,
-        user_message_id: str,
-        content: str,
-        file_ids: List[str]
-    ):
-        """后台处理消息任务"""
-        task = self.message_tasks[task_id]
-        task.status = MessageTaskStatus.PROCESSING
-
-        # 模拟延迟处理，便于测试状态查询
-        await asyncio.sleep(3)
-
-        try:
-            session = store.get(conversation_id)
-            if not session:
-                task.status = MessageTaskStatus.FAILED
-                task.error_message = "会话不存在"
-                return
-
-            # 1. 构建对话上下文
-            context_messages = []
-            recent_messages = session.messages[-settings.max_context_messages:]
-
-            for msg in recent_messages:
-                # 如果消息有关联文件，读取文件内容
-                file_content = ""
-                if msg.file_references:
-                    file_contents = []
-                    for file_id in msg.file_references:
-                        if file_id in session.files:
-                            file_info = session.files[file_id]
-                            file_text = await self._read_file_content(file_info.file_path)
-                            if file_text:
-                                file_contents.append(
-                                    f"\n[文件: {file_info.original_name}]\n{file_text}\n"
-                                )
-                    file_content = "\n".join(file_contents)
-
-                # 构建完整消息内容
-                full_content = file_content + msg.content
-                context_messages.append({
-                    "role": msg.role.value,
-                    "content": full_content
-                })
-
-            # 2. 调用 AI（使用系统提示词）
-            # 在线程池中执行同步的 AI 调用，避免阻塞事件循环
-            ai_response = await asyncio.to_thread(
-                self.ai_service.chat, context_messages, 0.7, True
-            )
-
-            # 3. 创建助手消息
-            assistant_message = Message(
-                role=MessageRole.ASSISTANT,
-                content=ai_response
-            )
-            session.messages.append(assistant_message)
-            session.updated_at = datetime.utcnow()
-
-            # 4. 更新任务状态
-            task.result_message = assistant_message
-            task.status = MessageTaskStatus.SUCCESS
-            task.completed_at = datetime.utcnow()
-
-            logger.info(f"消息任务完成: {task_id}")
-
-        except Exception as e:
-            logger.error(f"消息任务失败: {task_id}, 错误: {e}", exc_info=True)
-            task.status = MessageTaskStatus.FAILED
-            task.error_message = str(e)
-            task.completed_at = datetime.utcnow()
-
-    def get_message_task(self, task_id: str) -> Optional[MessageTask]:
-        """获取消息任务"""
-        task = self.message_tasks.get(task_id)
-        if task:
-            logger.info(f"查询任务状态: {task_id}, 当前状态: {task.status}")
-        else:
-            logger.warning(f"任务不存在: {task_id}")
-        return task
 
     async def upload_file(self, conversation_id: str, file: UploadFile) -> FileInfo:
         """上传文件"""
