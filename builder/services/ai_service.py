@@ -57,10 +57,21 @@ class AIService:
 
 然后给出你的最终答案。"""
 
-        # 非思考模式：加载orm.md文件
+        # 非思考模式：加载orm.md文件并注入配置
         prompt_path = Path(__file__).parent.parent / "prompts" / "orm.md"
         with open(prompt_path, "r", encoding="utf-8") as f:
-            return f.read()
+            prompt = f.read()
+
+        # 注入配置
+        config_vars = {
+            "{{DEFAULT_PACKAGE}}": settings.orm_default_package,
+            "{{TABLE_PREFIX}}": settings.orm_table_prefix,
+        }
+
+        for var, value in config_vars.items():
+            prompt = prompt.replace(var, value)
+
+        return prompt
 
     def _build_prompt(self, config_content: str) -> str:
         """构建完整提示词"""

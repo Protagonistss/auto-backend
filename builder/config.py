@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # 对话配置
     max_context_messages: int = 20  # 保留的上下文消息数量
 
+    # ORM 配置
+    orm_xml_path: str = "builder/templates/app.orm.xml"  # ORM 文件路径
+    orm_default_package: str = "app.module"  # 默认包名前缀
+    orm_table_prefix: str = ""  # 表名前缀（如 "lt_", "mall_"）
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

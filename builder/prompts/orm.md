@@ -20,36 +20,49 @@
 
 ## 二、输出格式说明
 
-输出为 Nop 平台的 ORM 实体定义（XML 格式），文件结构如下：
+输出为 Nop 平台的 ORM 实体定义（XML 格式），单 entity 片段格式：
 
-<orm x:schema="/nop/schema/orm/orm.xdef" xmlns:x="/nop/schema/xdsl.xdef"
-     xmlns:biz="biz" xmlns:orm="orm" xmlns:ext="ext">
-    <entities>
-        <entity name="app.module.EntityName" 
-                tableName="entity_name" 
-                displayName="实体显示名"
-                biz:type="entity"
-                registerShortName="true">
-            <columns>
-                <!-- 字段定义 -->
-            </columns>
-        </entity>
-    </entities>
-</orm>
+```xml
+<entity className="app.module.EntityName"
+        name="app.module.EntityName"
+        tableName="table_name"
+        displayName="实体显示名"
+        biz:type="entity"
+        registerShortName="true"
+        createTimeProp="addTime"
+        updateTimeProp="updateTime"
+        deleteFlagProp="deleted"
+        useLogicalDelete="true"
+        i18n-en:displayName="Entity Display Name">
+    <columns>
+        <!-- 字段定义 -->
+    </columns>
+    <comment>实体注释</comment>
+</entity>
+```
+
+**重要**：
+- `className` 和 `name` 必须相同，都是完整的 Java 类名
+- 必须包含逻辑删除相关属性：`deleteFlagProp`, `useLogicalDelete`
+- 必须包含时间戳属性：`createTimeProp`, `updateTimeProp`
+- 必须添加 i18n 支持：`i18n-en:displayName`
+- 必须添加 `<comment>` 注释标签
 
 ## 三、核心生成规则
 
 ### 3.1 实体命名规范
 
 1. **实体类名（name 属性）**：
-   - 格式：`{basePackage}.{module}.{EntityName}`
-   - 示例：`app.mall.Product` → `app.mall.Product`
-   - 从 `dataIndex` 或 `title` 提取，转换为 PascalCase
+   - 格式：`{package}.{EntityName}`
+   - 使用配置的默认包名：`{{DEFAULT_PACKAGE}}`
+   - 示例：如果配置是 `labor.tracking.dao.entity`，实体名为 `Product`，则完整类名为 `labor.tracking.dao.entity.Product`
+   - 从 `dataIndex` 或 `title` 提取实体名，转换为 PascalCase
    - 如果 `dataIndex` 是中文，使用 `title` 的拼音或英文翻译
 
 2. **表名（tableName 属性）**：
-   - 格式：下划线命名，全小写
-   - 示例：`Product` → `product`，`OrderItem` → `order_item`
+   - 格式：`{prefix}{table_name}`（全小写下划线命名）
+   - 使用配置的表前缀：`{{TABLE_PREFIX}}`
+   - 示例：如果配置前缀是 `lt_`，实体名为 `Product`，则表名为 `lt_product`
    - 从实体名转换：PascalCase → snake_case
 
 3. **显示名（displayName 属性）**：
@@ -73,70 +86,120 @@
    - 直接使用 `title` 字段的值
    - 示例：`商品名称`、`商品数量`
 
+4. **i18n 支持（i18n-en:displayName 属性）**：
+   - 为每个字段添加英文显示名
+   - 将中文翻译为英文
+   - 示例：`商品名称` → `Product Name`
+
 ### 3.3 数据类型映射规则
 
-根据字段的语义和类型，映射到对应的 SQL 类型：
+根据字段的语义和类型，映射到对应的 SQL 类型和 stdDataType：
 
-| 字段语义/类型 | stdSqlType | stdDomain | precision | scale | 说明 |
-|--------------|-----------|-----------|-----------|-------|------|
-| 名称/标题/文本 | VARCHAR | string | 100-200 | - | 根据业务含义调整长度 |
-| 数量/计数 | INTEGER | - | - | - | 整数类型 |
-| 金额/价格 | DECIMAL | - | 18 | 2 | 金额字段固定精度 |
-| 百分比 | DECIMAL | - | 5 | 2 | 百分比字段 |
+| 字段语义/类型 | stdSqlType | stdDataType | precision | scale | 说明 |
+|--------------|-----------|-------------|-----------|-------|------|
+| 主键ID | INTEGER | int | - | - | 自增主键 |
+| 名称/标题/文本 | VARCHAR | string | 255 | - | 默认长度255 |
+| 数量/计数 | INTEGER | int | - | - | 整数类型 |
+| 金额/价格 | DECIMAL | decimal | 18 | 2 | 金额字段固定精度 |
+| 百分比 | DECIMAL | decimal | 5 | 2 | 百分比字段 |
 | 日期 | DATE | date | - | - | 仅日期 |
 | 日期时间 | DATETIME | datetime | - | - | 日期+时间 |
 | 时间 | TIME | time | - | - | 仅时间 |
-| 布尔值 | BOOLEAN | - | - | - | true/false |
-| 状态/枚举 | VARCHAR | - | 4 | - | 配合字典使用 |
-| 来源/类型 | VARCHAR | - | 50 | - | 短文本枚举 |
-| 描述/备注 | VARCHAR | text | 500-2000 | - | 长文本 |
-| 图片 | VARCHAR | image | 200 | - | 图片URL |
-| 文件 | VARCHAR | file | 200 | - | 文件URL |
-| 图片列表 | VARCHAR | imageList | 500 | - | 多个图片 |
-| 文件列表 | VARCHAR | fileList | 500 | - | 多个文件 |
+| 布尔值 | BOOLEAN | boolean | - | - | true/false |
+| 状态/枚举 | VARCHAR | string | 255 | - | 配合字典使用 |
+| 来源/类型 | VARCHAR | string | 255 | - | 短文本枚举 |
+| 描述/备注 | VARCHAR | string | 500-2000 | - | 长文本 |
+| 创建时间 | DATETIME | datetime | - | - | domain="createTime" |
+| 更新时间 | DATETIME | datetime | - | - | domain="updateTime" |
+| 逻辑删除 | BOOLEAN | boolean | - | - | domain="delFlag" |
 
 ### 3.4 字段属性配置
 
 1. **主键字段**：
    - 固定字段名：`id`
-   - 类型：`VARCHAR(36)`
-   - 属性：`primary="true"`, `mandatory="true"`
+   - 类型：`INTEGER`
+   - 必须添加 `stdDataType="int"`
+   - 必须添加 `tagSet="seq"` (序列标签)
+   - 必须添加 `ui:show="R"` (只读显示)
    - 示例：
-   <column name="id" code="ID" propId="1" stdSqlType="VARCHAR" 
-           precision="36" primary="true" mandatory="true"/>
-   2. **propId 分配**：
+   ```xml
+   <column name="id" code="ID" propId="1" stdSqlType="INTEGER"
+           stdDataType="int" tagSet="seq" ui:show="R"
+           primary="true" mandatory="true"
+           displayName="Id" i18n-en:displayName="Id"/>
+   ```
+
+2. **propId 分配**：
    - 从 1 开始递增
    - 主键固定为 1
-   - 其他字段按顺序分配 2, 3, 4...
+   - 业务字段从 2 开始
+   - 系统字段（addTime, updateTime, deleted）放在最后
 
-3. **mandatory 属性**：
-   - 根据业务语义判断
-   - 名称、编号等关键字段通常为 `mandatory="true"`
-   - 可选字段不设置或设置为 `false`
+3. **业务字段属性**：
+   - **必填属性**：`name`, `code`, `propId`, `stdSqlType`, `stdDataType`, `displayName`
+   - **推荐属性**：
+     - `mandatory="true"` - 必填字段
+     - `precision` - VARCHAR 长度，默认 255
+     - `scale` - DECIMAL 精度
+     - `i18n-en:displayName` - 英文显示名
+   - **可选属性**：
+     - `tagSet="disp"` - 显示标签（用于列表展示字段）
+     - `domain` - 数据域（如 createTime, updateTime, delFlag）
 
-4. **字典字段（ext:dict）**：
-   - 状态类字段（如 status、state）必须定义字典
-   - 有限枚举值字段（≤10个选项）定义字典
-   - 字典名格式：`{业务域}_{用途}`，如 `product_status`、`order_source`
-   - 字段类型：`VARCHAR(4)`
-   - 示例：l
-   <column name="status" code="STATUS" propId="5" stdSqlType="VARCHAR" 
-           precision="4" ext:dict="product_status"/>
-   ### 3.5 必填配置项
+4. **系统字段（必须添加）**：
+   - **创建时间**：
+   ```xml
+   <column name="addTime" code="ADD_TIME" propId="N" stdSqlType="DATETIME"
+           stdDataType="datetime" domain="createTime" displayName="创建时间"
+           i18n-en:displayName="Create Time" ui:show="X"/>
+   ```
+   - **更新时间**：
+   ```xml
+   <column name="updateTime" code="UPDATE_TIME" propId="N+1" stdSqlType="DATETIME"
+           stdDataType="datetime" domain="updateTime" displayName="更新时间"
+           i18n-en:displayName="Update Time" ui:show="X"/>
+   ```
+   - **逻辑删除**：
+   ```xml
+   <column name="deleted" code="DELETED" propId="N+2" stdSqlType="BOOLEAN"
+           stdDataType="boolean" domain="delFlag" displayName="逻辑删除"
+           i18n-en:displayName="Deleted" ui:show="X"/>
+   ```
+   - **ui:show="X"** 表示在界面中不显示
+
+5. **字典字段**：
+   - 状态类字段必须定义 `ext:dict`
+   - 字典名格式：`{业务域}_{用途}`，如 `product_status`
+   - 示例：
+   ```xml
+   <column name="status" code="STATUS" propId="5" stdSqlType="VARCHAR"
+           stdDataType="string" precision="255" ext:dict="product_status"
+           displayName="状态" i18n-en:displayName="Status"/>
+   ```
+
+### 3.5 必填配置项
 
 1. **实体级别**：
-   - `name`: 实体完整类名
+   - `className`: 实体完整 Java 类名
+   - `name`: 实体完整类名（与 className 相同）
    - `tableName`: 数据库表名
    - `displayName`: 显示名称
    - `biz:type`: 业务类型（entity/entity-detail/txn/txn-detail/report/report-detail/config/config-detail）
    - `registerShortName`: 是否注册短名称（通常为 `true`）
+   - `createTimeProp`: 创建时间字段名（固定为 `addTime`）
+   - `updateTimeProp`: 更新时间字段名（固定为 `updateTime`）
+   - `deleteFlagProp`: 逻辑删除字段名（固定为 `deleted`）
+   - `useLogicalDelete`: 是否使用逻辑删除（固定为 `true`）
+   - `i18n-en:displayName`: 英文显示名
 
 2. **字段级别**：
    - `name`: Java 属性名
    - `code`: 数据库列名
    - `propId`: 属性ID（唯一，从1开始）
    - `stdSqlType`: SQL 类型（必填）
+   - `stdDataType`: Java 数据类型（必填）
    - `displayName`: 显示名称
+   - `i18n-en:displayName`: 英文显示名
 
 ## 四、生成流程
 
@@ -147,28 +210,22 @@
 
 ### 步骤2：生成实体定义
 1. 确定实体名称和表名
-2. 设置 `biz:type`（默认为 `entity`）
-3. 添加主键字段 `id`
+2. 设置所有必填属性（包括 className, createTimeProp, updateTimeProp, deleteFlagProp, useLogicalDelete）
+3. 设置 i18n 支持（i18n-en:displayName）
 
 ### 步骤3：生成字段定义
-对每个列执行：
-1. **字段名转换**：
-   - `dataIndex` → Java 属性名（camelCase）
-   - Java 属性名 → 数据库列名（UPPER_SNAKE_CASE）
-
-2. **类型推断**：
-   - 根据 `title` 语义推断类型
-   - 根据 `dataIndex` 名称推断（如包含"数量"→INTEGER，"价格"→DECIMAL）
-   - 根据搜索字段的 `type` 辅助推断
-
-3. **属性设置**：
-   - `propId`: 按顺序分配（主键=1，其他从2开始）
-   - `mandatory`: 根据业务语义判断
-   - `stdDomain`: 根据类型设置（如 image、file）
-   - `ext:dict`: 状态/枚举字段设置字典
+1. 添加主键字段 `id`（propId=1，INTEGER 类型）
+2. 对每个业务列执行：
+   - 字段名转换：`dataIndex` → camelCase
+   - 类型推断：根据 `title` 和 `dataIndex` 推断类型
+   - 属性设置：propId, stdSqlType, stdDataType, displayName, i18n-en:displayName
+3. 添加系统字段（放在最后）：
+   - addTime（创建时间）
+   - updateTime（更新时间）
+   - deleted（逻辑删除）
 
 ### 步骤4：生成完整 XML
-组装为完整的 ORM XML 结构
+组装 entity 片段，添加 `<comment>` 注释
 
 ## 五、示例转换
 
@@ -190,37 +247,58 @@
 
 ### 输出 ORM XML：
 ```xml
-    <entity name="app.mall.Product"
-            tableName="product"
-            displayName="商品"
-            biz:type="entity"
-            registerShortName="true">
-        <columns>
-            <column name="id" code="ID" propId="1" stdSqlType="VARCHAR"
-                    precision="36" primary="true" mandatory="true"
-                    displayName="ID"/>
-            <column name="productName" code="PRODUCT_NAME" propId="2"
-                    stdSqlType="VARCHAR" precision="200" mandatory="true"
-                    displayName="商品名称"/>
-            <column name="productQuantity" code="PRODUCT_QUANTITY" propId="3"
-                    stdSqlType="INTEGER" displayName="商品数量"/>
-            <column name="productSource" code="PRODUCT_SOURCE" propId="4"
-                    stdSqlType="VARCHAR" precision="50"
-                    ext:dict="product_source" displayName="商品来源"/>
-            <column name="productPrice" code="PRODUCT_PRICE" propId="5"
-                    stdSqlType="DECIMAL" precision="18" scale="2"
-                    displayName="商品价格"/>
-        </columns>
-    </entity>
+<entity className="{{DEFAULT_PACKAGE}}.Product"
+        name="{{DEFAULT_PACKAGE}}.Product"
+        tableName="{{TABLE_PREFIX}}product"
+        displayName="商品"
+        biz:type="entity"
+        registerShortName="true"
+        createTimeProp="addTime"
+        updateTimeProp="updateTime"
+        deleteFlagProp="deleted"
+        useLogicalDelete="true"
+        i18n-en:displayName="Product">
+    <columns>
+        <column name="id" code="ID" propId="1" stdSqlType="INTEGER"
+                stdDataType="int" tagSet="seq" ui:show="R"
+                primary="true" mandatory="true"
+                displayName="Id" i18n-en:displayName="Id"/>
+        <column name="productName" code="PRODUCT_NAME" propId="2"
+                stdSqlType="VARCHAR" stdDataType="string" precision="255"
+                mandatory="true" tagSet="disp"
+                displayName="商品名称" i18n-en:displayName="Product Name"/>
+        <column name="productQuantity" code="PRODUCT_QUANTITY" propId="3"
+                stdSqlType="INTEGER" stdDataType="int"
+                displayName="商品数量" i18n-en:displayName="Product Quantity"/>
+        <column name="productSource" code="PRODUCT_SOURCE" propId="4"
+                stdSqlType="VARCHAR" stdDataType="string" precision="255"
+                ext:dict="product_source"
+                displayName="商品来源" i18n-en:displayName="Product Source"/>
+        <column name="productPrice" code="PRODUCT_PRICE" propId="5"
+                stdSqlType="DECIMAL" stdDataType="decimal" precision="18" scale="2"
+                displayName="商品价格" i18n-en:displayName="Product Price"/>
+        <column name="addTime" code="ADD_TIME" propId="6"
+                stdSqlType="DATETIME" stdDataType="datetime" domain="createTime"
+                displayName="创建时间" i18n-en:displayName="Create Time" ui:show="X"/>
+        <column name="updateTime" code="UPDATE_TIME" propId="7"
+                stdSqlType="DATETIME" stdDataType="datetime" domain="updateTime"
+                displayName="更新时间" i18n-en:displayName="Update Time" ui:show="X"/>
+        <column name="deleted" code="DELETED" propId="8"
+                stdSqlType="BOOLEAN" stdDataType="boolean" domain="delFlag"
+                displayName="逻辑删除" i18n-en:displayName="Deleted" ui:show="X"/>
+    </columns>
+    <comment>商品信息</comment>
+</entity>
 ```
 
 ## 六、约束条件
 
-1. **主键固定**：必须使用 `id` 字段，类型 `VARCHAR(36)`
+1. **主键固定**：必须使用 `id` 字段，类型 `INTEGER`，带 `stdDataType="int"`, `tagSet="seq"`, `ui:show="R"`
 2. **SQL 类型限制**：仅允许 `VARCHAR/CHAR/DATE/TIME/DATETIME/TIMESTAMP/INTEGER/BIGINT/DECIMAL/BOOLEAN/VARBINARY`
-3. **禁止字段**：不要手动添加 `IS_DELETED`、`CREATE_TIME`、`UPDATE_TIME`、`CREATED_BY` 等系统字段（平台会自动处理）
-4. **字典规范**：状态和枚举字段使用 `VARCHAR(4)` + `ext:dict`
+3. **必填系统字段**：必须添加 `addTime`, `updateTime`, `deleted` 三个系统字段
+4. **字典规范**：状态和枚举字段使用 `VARCHAR(255)` + `ext:dict`
 5. **命名规范**：避免 SQL 关键字，使用下划线命名数据库列
+6. **i18n 要求**：所有字段必须添加 `i18n-en:displayName` 英文显示名
 
 ## 七、特殊处理
 
@@ -244,7 +322,8 @@
 
 1. 生成的 XML 必须符合 `references/orm.xdef` 规范
 2. 所有必填属性必须设置
-3. 字段顺序：主键 → 业务字段（按输入顺序）
-4. 代码格式：缩进 4 个空格，属性换行对齐
-5. 注释：为复杂字段添加注释说明
-6. 只输出单个 <entity>...</entity> 片段，不要 XML 头、<orm>、<entities> 包裹
+3. 字段顺序：主键 → 业务字段（按输入顺序）→ 系统字段（addTime, updateTime, deleted）
+4. 代码格式：每个属性单独一行，缩进对齐
+5. 必须添加 `<comment>` 注释标签
+6. 只输出单个 `<entity>...</entity>` 片段，不要 XML 头、`<orm>`、`<entities>` 包裹
+7. entity 标签必须包含 `className`, `createTimeProp`, `updateTimeProp`, `deleteFlagProp`, `useLogicalDelete`, `i18n-en:displayName` 属性
