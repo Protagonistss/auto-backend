@@ -17,8 +17,8 @@ dependencies = [
     "zhipuai>=2.1.5.20250825",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "httpx>=0.28.1",
     "mypy>=1.19.1",
     "pytest>=9.0.2",

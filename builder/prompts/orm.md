@@ -27,7 +27,6 @@
         name="app.module.EntityName"
         tableName="table_name"
         displayName="实体显示名"
-        biz:type="entity"
         registerShortName="true"
         createTimeProp="addTime"
         updateTimeProp="updateTime"
@@ -62,8 +61,14 @@
 2. **表名（tableName 属性）**：
    - 格式：`{prefix}{table_name}`（全小写下划线命名）
    - 使用配置的表前缀：`{{TABLE_PREFIX}}`
-   - 示例：如果配置前缀是 `lt_`，实体名为 `Product`，则表名为 `lt_product`
-   - 从实体名转换：PascalCase → snake_case
+   - 从实体名转换：PascalCase → snake_case（**必须使用下划线分隔单词**）
+   - 示例：
+     - `Product` → `lt_product`（注意是下划线不是连字符）
+     - `LtProduct` → `lt_product`（大写字母前加下划线）
+     - `UserInfo` → `lt_user_info`
+     - `OrderDetail` → `lt_order_detail`
+     - `ShopCategory` → `lt_shop_category`
+   - **重要**：实体名中的每个大写字母或单词都要用下划线分隔，不能连写
 
 3. **显示名（displayName 属性）**：
    - 使用表格的标题或实体名称的中文描述
@@ -180,7 +185,6 @@
    - `name`: 实体完整类名（与 className 相同）
    - `tableName`: 数据库表名
    - `displayName`: 显示名称
-   - `biz:type`: 业务类型（entity/entity-detail/txn/txn-detail/report/report-detail/config/config-detail）
    - `registerShortName`: 是否注册短名称（通常为 `true`）
    - `createTimeProp`: 创建时间字段名（固定为 `addTime`）
    - `updateTimeProp`: 更新时间字段名（固定为 `updateTime`）
@@ -247,7 +251,6 @@
         name="{{DEFAULT_PACKAGE}}.Product"
         tableName="{{TABLE_PREFIX}}product"
         displayName="商品"
-        biz:type="entity"
         registerShortName="true"
         createTimeProp="addTime"
         updateTimeProp="updateTime"

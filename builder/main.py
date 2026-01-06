@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .config import settings
-from .api import upload, conversations, orm
+from .api import upload, conversations, orm, xml
 
 # 配置日志
 logging.basicConfig(
@@ -54,6 +54,7 @@ app.add_middleware(
 app.include_router(upload.router, tags=["任务管理"])
 app.include_router(conversations.router, tags=["对话管理"])
 app.include_router(orm.router, tags=["ORM管理"])
+app.include_router(xml.router, prefix="/xml", tags=["XML管理"])
 
 
 @app.get("/", summary="服务信息", tags=["系统"])
