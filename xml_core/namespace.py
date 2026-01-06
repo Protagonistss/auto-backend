@@ -1,17 +1,25 @@
 """XML 命名空间处理器"""
 
-from typing import List, Set
+from typing import List, Set, Optional
 from lxml import etree
 
 
 class NamespaceHandler:
     """XML 命名空间处理"""
 
-    # 常见命名空间前缀
-    COMMON_PREFIXES = ['biz', 'ext', 'orm', 'i18n-en', 'ui', 'x', 'xpl', 'xs']
+    def __init__(self, prefixes: Optional[List[str]] = None):
+        """
+        初始化命名空间处理器
 
-    @staticmethod
-    def detect_used_namespaces(xml: str) -> Set[str]:
+        Args:
+            prefixes: 支持的命名空间前缀列表
+        """
+        if prefixes is None:
+            self.prefixes = ['biz', 'ext', 'orm', 'i18n-en', 'ui', 'x', 'xpl', 'xs']
+        else:
+            self.prefixes = prefixes
+
+    def detect_used_namespaces(self, xml: str) -> Set[str]:
         """
         检测 XML 中使用的命名空间前缀
 
@@ -22,7 +30,7 @@ class NamespaceHandler:
             使用的命名空间前缀集合
         """
         used_namespaces = set()
-        for prefix in NamespaceHandler.COMMON_PREFIXES:
+        for prefix in self.prefixes:
             if f'{prefix}:' in xml:
                 used_namespaces.add(prefix)
         return used_namespaces
@@ -43,8 +51,7 @@ class NamespaceHandler:
             declarations.append(f'xmlns:{prefix}="{prefix}"')
         return declarations
 
-    @staticmethod
-    def prepare_namespace_wrapper(xml: str) -> tuple[str, dict]:
+    def prepare_namespace_wrapper(self, xml: str) -> tuple[str, dict]:
         """
         为 XML 片段准备命名空间包装
 
@@ -57,7 +64,7 @@ class NamespaceHandler:
         cleaned = xml.replace("```xml", "").replace("```", "").strip()
 
         # 检测实际使用的命名空间
-        used_namespaces = NamespaceHandler.detect_used_namespaces(cleaned)
+        used_namespaces = self.detect_used_namespaces(cleaned)
 
         # 构建命名空间映射
         ns_map = {}

@@ -1,10 +1,7 @@
 """XML 格式化器"""
 
-from pathlib import Path
 from typing import Optional
 from lxml import etree
-
-from .namespace import NamespaceHandler
 
 
 class XmlFormatter:
@@ -27,7 +24,6 @@ class XmlFormatter:
         self.encoding = encoding
         self.pretty_print = pretty_print
         self.xml_declaration = xml_declaration
-        self.ns_handler = NamespaceHandler()
 
     def serialize(
         self,

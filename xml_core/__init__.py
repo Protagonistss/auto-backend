@@ -61,7 +61,8 @@ class XmlCore:
         xml_path: str,
         encoding: str = "utf-8",
         pretty_print: bool = True,
-        xml_declaration: bool = True
+        xml_declaration: bool = True,
+        namespaces: Optional[list[str]] = None
     ):
         """
         初始化 XmlCore
@@ -71,25 +72,28 @@ class XmlCore:
             encoding: 文件编码
             pretty_print: 是否美化输出
             xml_declaration: 是否包含 XML 声明
+            namespaces: 支持的命名空间前缀列表
         """
         self.settings = XmlCoreSettings(
             xml_path=Path(xml_path),
             encoding=encoding,
             pretty_print=pretty_print,
-            xml_declaration=xml_declaration
+            xml_declaration=xml_declaration,
+            namespaces=namespaces or ['biz', 'ext', 'orm', 'i18n-en', 'ui', 'x', 'xpl', 'xs']
         )
 
         self.merger = XmlMerger(
             xml_path=str(self.settings.xml_path),
-            encoding=encoding
+            encoding=encoding,
+            namespaces=self.settings.namespaces
         )
-        self.parser = XmlParser(encoding=encoding)
+        self.parser = XmlParser(encoding=encoding, namespaces=self.settings.namespaces)
         self.formatter = XmlFormatter(
             encoding=encoding,
             pretty_print=pretty_print,
             xml_declaration=xml_declaration
         )
-        self.ns_handler = NamespaceHandler()
+        self.ns_handler = NamespaceHandler(prefixes=self.settings.namespaces)
 
     def merge_element(
         self,
@@ -145,7 +149,8 @@ class XmlCore:
     def for_orm(
         cls,
         xml_path: str,
-        encoding: str = "utf-8"
+        encoding: str = "utf-8",
+        namespaces: Optional[list[str]] = None
     ) -> "XmlCore":
         """
         创建用于 ORM XML 的 XmlCore 实例（工厂方法）
@@ -153,11 +158,12 @@ class XmlCore:
         Args:
             xml_path: ORM XML 文件路径
             encoding: 文件编码
+            namespaces: 支持的命名空间前缀列表
 
         Returns:
             XmlCore 实例
         """
-        return cls(xml_path=xml_path, encoding=encoding)
+        return cls(xml_path=xml_path, encoding=encoding, namespaces=namespaces)
 
     def find_element(
         self,

@@ -24,6 +24,10 @@ class XmlCoreSettings(BaseModel):
         default=True,
         description="是否移除子元素的命名空间声明"
     )
+    namespaces: list[str] = Field(
+        default=['biz', 'ext', 'orm', 'i18n-en', 'ui', 'x', 'xpl', 'xs'],
+        description="支持的命名空间前缀列表"
+    )
 
 
 class MergeOptions(BaseModel):

@@ -21,23 +21,34 @@ class TestNamespaceHandler:
 
     def test_detect_used_namespaces_with_biz(self):
         """测试检测 biz 命名空间"""
+        handler = NamespaceHandler()
         xml = '<entity biz:type="entity"></entity>'
-        result = NamespaceHandler.detect_used_namespaces(xml)
+        result = handler.detect_used_namespaces(xml)
         assert 'biz' in result
 
     def test_detect_used_namespaces_multiple(self):
         """测试检测多个命名空间"""
+        handler = NamespaceHandler()
         xml = '<entity biz:type="entity" ext:dict="type" ui:show="R"></entity>'
-        result = NamespaceHandler.detect_used_namespaces(xml)
+        result = handler.detect_used_namespaces(xml)
         assert 'biz' in result
         assert 'ext' in result
         assert 'ui' in result
 
     def test_detect_used_namespaces_none(self):
         """测试没有命名空间的情况"""
+        handler = NamespaceHandler()
         xml = '<entity name="test"></entity>'
-        result = NamespaceHandler.detect_used_namespaces(xml)
+        result = handler.detect_used_namespaces(xml)
         assert len(result) == 0
+
+    def test_custom_prefixes(self):
+        """测试自定义前缀"""
+        handler = NamespaceHandler(prefixes=['custom'])
+        xml = '<entity custom:attr="val" biz:attr="ignored"></entity>'
+        result = handler.detect_used_namespaces(xml)
+        assert 'custom' in result
+        assert 'biz' not in result
 
 
 class TestXmlParser:

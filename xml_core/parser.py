@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from lxml import etree
 
 from .namespace import NamespaceHandler
@@ -15,15 +15,16 @@ logger = logging.getLogger(__name__)
 class XmlParser:
     """XML 解析器"""
 
-    def __init__(self, encoding: str = "utf-8"):
+    def __init__(self, encoding: str = "utf-8", namespaces: Optional[List[str]] = None):
         """
         初始化解析器
 
         Args:
             encoding: 文件编码
+            namespaces: 支持的命名空间前缀列表
         """
         self.encoding = encoding
-        self.ns_handler = NamespaceHandler()
+        self.ns_handler = NamespaceHandler(prefixes=namespaces)
 
     def parse_file(
         self,

@@ -1,14 +1,13 @@
 """XML 合并器"""
 
 import logging
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from pathlib import Path
 from pydantic import BaseModel
 from lxml import etree
 
 from .parser import XmlParser
 from .formatter import XmlFormatter
-from .namespace import NamespaceHandler
 from .exceptions import XmlMergeError, XmlFileNotFoundError
 from .config.settings import MergeOptions
 
@@ -25,19 +24,19 @@ class MergeResult(BaseModel):
 class XmlMerger:
     """XML 元素合并器"""
 
-    def __init__(self, xml_path: str, encoding: str = "utf-8"):
+    def __init__(self, xml_path: str, encoding: str = "utf-8", namespaces: Optional[List[str]] = None):
         """
         初始化合并器
 
         Args:
             xml_path: XML 文件路径
             encoding: 文件编码
+            namespaces: 支持的命名空间前缀列表
         """
         self.xml_path = Path(xml_path)
         self.encoding = encoding
-        self.parser = XmlParser(encoding=encoding)
+        self.parser = XmlParser(encoding=encoding, namespaces=namespaces)
         self.formatter = XmlFormatter(encoding=encoding)
-        self.ns_handler = NamespaceHandler()
 
     def merge_element(
         self,
