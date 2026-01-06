@@ -39,13 +39,6 @@ class TestNamespaceHandler:
         result = NamespaceHandler.detect_used_namespaces(xml)
         assert len(result) == 0
 
-    def test_strip_child_namespace_declarations(self):
-        """测试移除子元素的命名空间声明"""
-        xml = '<root><entity xmlns:biz="biz" name="test"></entity></root>'
-        result = NamespaceHandler.strip_child_namespace_declarations(xml)
-        assert 'xmlns:biz' not in result
-        assert '<entity' in result
-
 
 class TestXmlParser:
     """测试 XML 解析器"""

@@ -35,7 +35,7 @@ class XmlParser:
 
         Args:
             file_path: XML 文件路径
-            auto_fix_namespaces: 是否自动修复命名空间
+            auto_fix_namespaces: 是否自动尝试修复命名空间（使用 recover 模式）
 
         Returns:
             ElementTree 对象
@@ -48,13 +48,12 @@ class XmlParser:
         if not path.exists():
             raise XmlFileNotFoundError(f"文件不存在: {file_path}")
 
-        # 自动修复命名空间
-        if auto_fix_namespaces:
-            self.ns_handler.ensure_namespaces_in_file(file_path, self.encoding)
-
+        # 使用 recover=True 来处理可能缺失命名空间的文件
+        # 这比正则替换更安全，lxml 会尽力解析
         parser = etree.XMLParser(
             remove_blank_text=False,
-            remove_comments=False
+            remove_comments=False,
+            recover=auto_fix_namespaces  # 启用恢复模式
         )
 
         try:
