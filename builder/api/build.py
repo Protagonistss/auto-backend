@@ -4,17 +4,23 @@ import json
 import time
 import uuid
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from ..models.task import BuildCommandRequest, BuildCommandResponse
 from ..services.shell_service import ShellService
 from ..services.process_manager import process_manager
 from ..config import settings
+from pydantic import BaseModel
 
 router = APIRouter()
 shell_service = ShellService()
 
 # 存储活跃的流式任务
 active_streams: dict = {}
+
+
+class ExportExcelRequest(BaseModel):
+    """导出 Excel 请求"""
+    output_name: str = "app.orm.xlsx"  # 输出文件名
 
 
 @router.post(
@@ -153,6 +159,119 @@ async def stop_service(port: int = 8080):
 
     # 立即返回
     return {"success": True, "message": f"正在停止端口 {port} 的服务..."}
+
+
+@router.post(
+    "/export/excel",
+    summary="导出 Excel",
+    description="通过 nop-cli.jar 生成 Excel 文件并下载"
+)
+async def export_excel(request: ExportExcelRequest):
+    """
+    导出 ORM 配置到 Excel
+
+    参数：
+    - **output_name**: 输出文件名（默认 app.orm.xlsx）
+
+    返回：Excel 文件下载
+    """
+    import logging
+    import subprocess
+    from pathlib import Path
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"=== 导出 Excel ===")
+    logger.info(f"输出文件: {request.output_name}")
+
+    try:
+        # 当前后端项目目录（auto-backend）
+        backend_dir = Path(__file__).parent.parent.parent
+
+        # nop-cli.jar 路径（在 auto-backend/scripts 中）
+        jar_path = backend_dir / "scripts" / "nop-cli.jar"
+
+        if not jar_path.exists():
+            raise HTTPException(status_code=404, detail=f"nop-cli.jar 不存在: {jar_path}")
+
+        # 项目工作目录（labor-tracking-system）
+        project_dir = Path(settings.project_root)
+
+        # 从配置获取 XML 文件路径
+        xml_path = Path(settings.orm_xml_path)
+        if not xml_path.exists():
+            raise HTTPException(status_code=404, detail=f"XML 文件不存在: {xml_path}")
+
+        # 计算相对于项目根目录的路径
+        try:
+            xml_relative_path = xml_path.relative_to(project_dir)
+        except ValueError:
+            # 如果不在项目根目录下，使用绝对路径
+            xml_relative_path = xml_path
+
+        logger.info(f"nop-cli.jar: {jar_path}")
+        logger.info(f"XML 文件路径: {xml_relative_path}")
+        logger.info(f"工作目录: {project_dir}")
+
+        # 输出文件路径（生成在项目根目录）
+        output_path = project_dir / request.output_name
+
+        # 构建命令
+        command = [
+            "java",
+            "-jar",
+            str(jar_path),
+            "gen-file",
+            "-t",
+            "/nop/orm/imp/orm.imp.xml",
+            "-o",
+            request.output_name,
+            str(xml_relative_path)
+        ]
+
+        logger.info(f"执行命令: {' '.join(command)}")
+
+        # 执行命令
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5分钟超时
+            cwd=str(project_dir)
+        )
+
+        logger.info(f"命令执行完成，退出码: {result.returncode}")
+        if result.stdout:
+            logger.info(f"stdout: {result.stdout}")
+        if result.stderr:
+            logger.warning(f"stderr: {result.stderr}")
+
+        # 检查输出文件是否生成
+        if not output_path.exists():
+            logger.error("输出文件未生成")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Excel 生成失败。命令输出: {result.stdout}, 错误: {result.stderr}"
+            )
+
+        logger.info(f"返回文件: {output_path}")
+
+        # 返回文件下载
+        return FileResponse(
+            path=str(output_path),
+            filename=request.output_name,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except subprocess.TimeoutExpired:
+        logger.error("命令执行超时")
+        raise HTTPException(status_code=408, detail="命令执行超时")
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"导出 Excel 失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
 
 
 @router.post(
