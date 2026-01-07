@@ -62,8 +62,11 @@ class ShellService:
         # 使用队列在线程和异步代码之间传递数据
         output_queue: queue.Queue[str] = queue.Queue()
         result_queue: queue.Queue[dict] = queue.Queue()
+        stop_event = threading.Event()  # 添加停止事件
 
         # 在线程中运行命令
+        process_ref = [None]  # 使用列表存储进程引用，以便在闭包中修改
+
         def run_in_thread():
             try:
                 process = subprocess.Popen(
@@ -77,6 +80,7 @@ class ShellService:
                     errors='replace',
                     bufsize=1  # 行缓冲
                 )
+                process_ref[0] = process  # 保存进程引用
 
                 # 逐行读取输出
                 for line in iter(process.stdout.readline, ''):
@@ -117,25 +121,62 @@ class ShellService:
                         if elapsed > timeout:
                             raise TimeoutError(f"命令执行超时 ({timeout}s)")
 
+                    # 让出控制权，允许事件循环处理其他请求
+                    await asyncio.sleep(0)
+
                 except queue.Empty:
                     # 检查超时
                     if timeout:
                         elapsed = asyncio.get_event_loop().time() - start_time
                         if elapsed > timeout:
                             raise TimeoutError(f"命令执行超时 ({timeout}s)")
+
+                    # 队列为空时，也让出控制权
+                    await asyncio.sleep(0)
                     continue
 
             # 获取最终结果
             result = result_queue.get(timeout=1)
 
             if not result['success']:
-                error_msg = result.get('error', f"命令执行失败 (Exit Code: {result['returncode']})")
-                raise RuntimeError(error_msg)
+                # 命令执行失败，但输出已经通过 yield 返回了
+                # 发送一个特殊的退出码行，让调用者知道命令失败
+                returncode = result.get('returncode', -1)
+                logger.warning(f"命令执行失败 (Exit Code: {returncode})，输出已返回")
+                yield f"__BUILD_EXIT_CODE:{returncode}__"
+            else:
+                # 命令成功，发送退出码 0
+                yield f"__BUILD_EXIT_CODE:0__"
 
-            logger.info("流式命令执行成功")
+            logger.info("流式命令执行完成")
+
+        except GeneratorExit:
+            # 客户端断开连接，清理进程
+            logger.warning("客户端断开连接，正在终止进程...")
+            if process_ref[0]:
+                try:
+                    process_ref[0].terminate()
+                    # 等待进程结束，最多等待 3 秒
+                    try:
+                        process_ref[0].wait(timeout=3)
+                    except:
+                        # 如果进程没有终止，强制杀死
+                        logger.warning("进程未能正常终止，强制杀死")
+                        process_ref[0].kill()
+                    logger.info("进程已终止")
+                except Exception as e:
+                    logger.error(f"终止进程时出错: {str(e)}")
+            raise
 
         except TimeoutError as e:
+            # 超时，也要清理进程
             logger.error(str(e))
+            if process_ref[0]:
+                try:
+                    process_ref[0].kill()
+                    logger.info("进程因超时被杀死")
+                except Exception as e:
+                    logger.error(f"杀死超时进程时出错: {str(e)}")
             raise
 
         except Exception as e:

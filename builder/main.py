@@ -78,9 +78,22 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+    import sys
+
+    # 检查是否使用多 worker 模式
+    workers = 1
+    reload = True
+
+    if "--multi" in sys.argv:
+        # 多 worker 模式（不支持 reload）
+        workers = 4
+        reload = False
+        logger.info("🚀 使用多 worker 模式 (4 workers)")
+
     uvicorn.run(
         "builder.main:app",
         host=settings.host,
         port=settings.port,
-        reload=True,
+        reload=reload,
+        workers=workers if not reload else None,  # reload 模式下只能用 1 worker
     )

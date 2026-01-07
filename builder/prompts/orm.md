@@ -51,23 +51,26 @@
 
 ### 3.1 实体命名规范
 
-1. **实体类名（name 属性）**：
-   - 格式：`{package}.{EntityName}`
+1. **实体类名（className 和 name 属性）**：
+   - 格式：`{package}.{Prefix}{EntityName}`
    - 使用配置的默认包名：`{{DEFAULT_PACKAGE}}`
-   - 示例：如果配置是 `labor.tracking.dao.entity`，实体名为 `Product`，则完整类名为 `labor.tracking.dao.entity.Product`
-   - 从 `dataIndex` 或 `title` 提取实体名，转换为 PascalCase
-   - 如果 `dataIndex` 是中文，使用 `title` 的拼音或英文翻译
+   - **类名必须包含表前缀**，前缀从 `{{TABLE_PREFIX}}` 提取并转换为 PascalCase
+   - 前缀转换规则：`lt_` → `Lt`，`mall_` → `Mall`，`shop_` → `Shop`
+   - 示例：
+     - 如果 `TABLE_PREFIX=lt_`，实体名为 `Product`，则完整类名为 `{{DEFAULT_PACKAGE}}.LtProduct`
+     - 如果 `TABLE_PREFIX=lt_`，实体名为 `UserInfo`，则完整类名为 `{{DEFAULT_PACKAGE}}.LtUserInfo`
+     - 如果 `TABLE_PREFIX=mall_`，实体名为 `Order`，则完整类名为 `{{DEFAULT_PACKAGE}}.MallOrder`
+   - **重要**：`className` 和 `name` 必须完全相同，都必须包含前缀
 
 2. **表名（tableName 属性）**：
    - 格式：`{prefix}{table_name}`（全小写下划线命名）
    - 使用配置的表前缀：`{{TABLE_PREFIX}}`
    - 从实体名转换：PascalCase → snake_case（**必须使用下划线分隔单词**）
    - 示例：
-     - `Product` → `lt_product`（注意是下划线不是连字符）
-     - `LtProduct` → `lt_product`（大写字母前加下划线）
-     - `UserInfo` → `lt_user_info`
-     - `OrderDetail` → `lt_order_detail`
-     - `ShopCategory` → `lt_shop_category`
+     - `LtProduct` → `lt_product`（注意是下划线不是连字符）
+     - `LtUserInfo` → `lt_user_info`
+     - `MallOrder` → `mall_order`
+     - `ShopCategory` → `shop_category`
    - **重要**：实体名中的每个大写字母或单词都要用下划线分隔，不能连写
 
 3. **显示名（displayName 属性）**：
@@ -107,8 +110,7 @@
 | 日期时间 | DATETIME | datetime | - | - | 日期+时间 |
 | 时间 | TIME | time | - | - | 仅时间 |
 | 布尔值 | BOOLEAN | boolean | - | - | true/false |
-| 状态/枚举 | VARCHAR | string | 255 | - | 配合字典使用 |
-| 来源/类型 | VARCHAR | string | 255 | - | 短文本枚举 |
+| 状态/来源/类型 | VARCHAR | string | 255 | - | 短文本 |
 | 描述/备注 | VARCHAR | string | 500-2000 | - | 长文本 |
 | 创建时间 | DATETIME | datetime | - | - | domain="createTime" |
 | 更新时间 | DATETIME | datetime | - | - | domain="updateTime" |
@@ -167,16 +169,6 @@
            i18n-en:displayName="Deleted" ui:show="X"/>
    ```
    - **ui:show="X"** 表示在界面中不显示
-
-5. **字典字段**：
-   - 状态类字段必须定义 `ext:dict`
-   - 字典名格式：`{业务域}_{用途}`，如 `product_status`
-   - 示例：
-   ```xml
-   <column name="status" code="STATUS" propId="5" stdSqlType="VARCHAR"
-           stdDataType="string" precision="255" ext:dict="product_status"
-           displayName="状态" i18n-en:displayName="Status"/>
-   ```
 
 ### 3.5 必填配置项
 
@@ -247,8 +239,8 @@
 
 ### 输出 ORM XML：
 ```xml
-<entity className="{{DEFAULT_PACKAGE}}.Product"
-        name="{{DEFAULT_PACKAGE}}.Product"
+<entity className="{{DEFAULT_PACKAGE}}.LtProduct"
+        name="{{DEFAULT_PACKAGE}}.LtProduct"
         tableName="{{TABLE_PREFIX}}product"
         displayName="商品"
         registerShortName="true"
@@ -270,7 +262,6 @@
                 displayName="商品数量"/>
         <column name="productSource" code="PRODUCT_SOURCE" propId="4"
                 stdSqlType="VARCHAR" stdDataType="string" precision="255"
-                ext:dict="product_source"
                 displayName="商品来源"/>
         <column name="productPrice" code="PRODUCT_PRICE" propId="5"
                 stdSqlType="DECIMAL" stdDataType="decimal" precision="18" scale="2"
@@ -294,8 +285,7 @@
 1. **主键固定**：必须使用 `id` 字段，类型 `INTEGER`，带 `stdDataType="int"`, `tagSet="seq"`, `ui:show="R"`
 2. **SQL 类型限制**：仅允许 `VARCHAR/CHAR/DATE/TIME/DATETIME/TIMESTAMP/INTEGER/BIGINT/DECIMAL/BOOLEAN/VARBINARY`
 3. **必填系统字段**：必须添加 `addTime`, `updateTime`, `deleted` 三个系统字段
-4. **字典规范**：状态和枚举字段使用 `VARCHAR(255)` + `ext:dict`
-5. **命名规范**：避免 SQL 关键字，使用下划线命名数据库列
+4. **命名规范**：避免 SQL 关键字，使用下划线命名数据库列
 
 ## 七、特殊处理
 
@@ -307,13 +297,13 @@
    - 字段名包含"数量"、"个数" → `INTEGER`
    - 字段名包含"价格"、"金额"、"费用" → `DECIMAL(18,2)`
    - 字段名包含"日期" → `DATE` 或 `DATETIME`
-   - 字段名包含"状态"、"类型" → `VARCHAR(4)` + 字典
+   - 字段名包含"状态"、"类型"、"来源"、"渠道"等 → `VARCHAR(255)`
    - 字段名包含"图片"、"照片" → `VARCHAR(200)` + `stdDomain="image"`
    - 字段名包含"文件"、"附件" → `VARCHAR(200)` + `stdDomain="file"`
 
 3. **搜索字段辅助**：
-   - 如果搜索字段的 `type` 为 `select`，对应的表格列可能是枚举类型
    - 如果搜索字段的 `type` 为 `date`，对应的表格列是日期类型
+   - 如果搜索字段的 `type` 为 `select`，对应的表格列可能是文本类型
 
 ## 八、输出要求
 
