@@ -168,7 +168,7 @@ async def stop_service(port: int = 8080):
 )
 async def export_excel(request: ExportExcelRequest):
     """
-    导出 ORM 配置到 Excel
+    导出 ORM 配置到 Excel（非流式）
 
     参数：
     - **output_name**: 输出文件名（默认 app.orm.xlsx）
@@ -272,6 +272,175 @@ async def export_excel(request: ExportExcelRequest):
     except Exception as e:
         logger.error(f"导出 Excel 失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+
+
+@router.post(
+    "/export/excel/stream",
+    summary="流式导出 Excel",
+    description="通过 nop-cli.jar 生成 Excel 文件，实时返回输出日志"
+)
+async def export_excel_stream(request: ExportExcelRequest):
+    """
+    流式导出 ORM 配置到 Excel（SSE）
+
+    返回 Server-Sent Events 格式的流式数据：
+    - data: {"type": "log", "line": "输出行"}
+    - data: {"type": "complete", "success": true/false, "message": "...", "output_name": "文件名"}
+
+    参数：
+    - **output_name**: 输出文件名（默认 app.orm.xlsx）
+    """
+    import logging
+    import subprocess
+    from pathlib import Path
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"=== 流式导出 Excel ===")
+    logger.info(f"输出文件: {request.output_name}")
+
+    # 当前后端项目目录（auto-backend）
+    backend_dir = Path(__file__).parent.parent.parent
+
+    # nop-cli.jar 路径
+    jar_path = backend_dir / "scripts" / "nop-cli.jar"
+
+    if not jar_path.exists():
+        async def error_gen():
+            yield f"data: {json.dumps({'type': 'complete', 'success': False, 'message': f'nop-cli.jar 不存在: {jar_path}'}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    # 项目工作目录
+    project_dir = Path(settings.project_root)
+
+    # 从配置获取 XML 文件路径
+    xml_path = Path(settings.orm_xml_path)
+    if not xml_path.exists():
+        async def error_gen():
+            yield f"data: {json.dumps({'type': 'complete', 'success': False, 'message': f'XML 文件不存在: {xml_path}'}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    # 计算相对路径
+    try:
+        xml_relative_path = xml_path.relative_to(project_dir)
+    except ValueError:
+        xml_relative_path = xml_path
+
+    logger.info(f"nop-cli.jar: {jar_path}")
+    logger.info(f"XML 文件路径: {xml_relative_path}")
+    logger.info(f"工作目录: {project_dir}")
+
+    # 输出文件路径
+    output_path = project_dir / request.output_name
+
+    # 构建命令
+    command = [
+        "java",
+        "-jar",
+        str(jar_path),
+        "gen-file",
+        "-t",
+        "/nop/orm/imp/orm.imp.xml",
+        "-o",
+        request.output_name,
+        str(xml_relative_path)
+    ]
+
+    logger.info(f"执行命令: {' '.join(command)}")
+
+    async def event_generator():
+        """SSE 事件生成器"""
+        success = True
+        error_message = "导出成功"
+
+        try:
+            # 使用 shell_service 的流式方法（直接传递命令列表）
+            async for line in shell_service.run_command_stream(
+                command=command,
+                cwd=str(project_dir),
+                timeout=300
+            ):
+                # 发送日志行
+                yield f"data: {json.dumps({'type': 'log', 'line': line}, ensure_ascii=False)}\n\n"
+
+        except GeneratorExit:
+            logger.warning("客户端断开连接，停止导出")
+            success = False
+            error_message = "客户端断开连接"
+            raise
+
+        except Exception as e:
+            success = False
+            error_message = str(e)
+            try:
+                yield f"data: {json.dumps({'type': 'complete', 'success': False, 'message': error_message}, ensure_ascii=False)}\n\n"
+            except:
+                pass
+            return
+
+        # 检查文件是否生成成功
+        if success:
+            if output_path.exists():
+                # 导出成功，返回文件名
+                try:
+                    yield f"data: {json.dumps({'type': 'complete', 'success': True, 'message': 'Excel 导出成功', 'output_name': request.output_name}, ensure_ascii=False)}\n\n"
+                except:
+                    pass
+            else:
+                # 文件未生成
+                try:
+                    yield f"data: {json.dumps({'type': 'complete', 'success': False, 'message': 'Excel 文件生成失败'}, ensure_ascii=False)}\n\n"
+                except:
+                    pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.get(
+    "/export/excel/download",
+    summary="下载导出的 Excel 文件",
+    description="下载已生成的 Excel 文件"
+)
+async def download_excel(filename: str = "app.orm.xlsx"):
+    """
+    下载 Excel 文件
+
+    参数：
+    - **filename**: 文件名
+    """
+    import logging
+    from pathlib import Path
+    logger = logging.getLogger(__name__)
+
+    try:
+        # 项目工作目录
+        project_dir = Path(settings.project_root)
+        file_path = project_dir / filename
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+
+        logger.info(f"下载文件: {file_path}")
+
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"下载文件失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
 
 
 @router.post(
